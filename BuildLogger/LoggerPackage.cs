@@ -105,17 +105,28 @@ namespace BuildLogger
 
         private int ReadTime()
         {
-            string s = File.ReadAllText(GetLogFilePath());
+            string s = string.Empty;
+            try
+            {
+                s = File.ReadAllText(GetLogFilePath());
+            }
+            catch (Exception)
+            {
+
+                return 0;
+            }
+
 
             return string.IsNullOrEmpty(s) ? 0 : int.Parse(s);
         }
 
         private void WriteTime(int v)
         {
-            using (var file = new FileStream(GetLogFilePath(), FileMode.Truncate, FileAccess.Write))
+            using (var file = new FileStream(GetLogFilePath(), FileMode.OpenOrCreate, FileAccess.Write))
             {
                 using (var writer = new StreamWriter(file))
                 {
+                    file.SetLength(0);
                     writer.Write(v);
                 }
             }
