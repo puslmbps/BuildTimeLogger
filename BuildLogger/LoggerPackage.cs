@@ -19,9 +19,9 @@ namespace BuildLogger
     [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
     [InstalledProductRegistration("#110", "#112", "1.0", IconResourceID = 400)] // Info on this package for Help/About
     [ProvideAutoLoad(UIContextGuids80.SolutionExists)]
-    [Guid(VSPackage1.PackageGuidString)]
+    [Guid(LoggerPackage.PackageGuidString)]
     [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1650:ElementDocumentationMustBeSpelledCorrectly", Justification = "pkgdef, VS and vsixmanifest are valid VS terms")]
-    public sealed class VSPackage1 : AsyncPackage, IVsUpdateSolutionEvents
+    public sealed class LoggerPackage : AsyncPackage, IVsUpdateSolutionEvents
     {
         /// <summary>
         /// VSPackage1 GUID string.
@@ -32,9 +32,9 @@ namespace BuildLogger
         private Stopwatch stopwatch;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="VSPackage1"/> class.
+        /// Initializes a new instance of the <see cref="LoggerPackage"/> class.
         /// </summary>
-        public VSPackage1()
+        public LoggerPackage()
         {
             stopwatch = new Stopwatch();
         }
@@ -43,6 +43,11 @@ namespace BuildLogger
 
        protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
         {
+            if (!Directory.Exists(GetLogFileRoot()))
+            {
+                Directory.CreateDirectory(GetLogFileRoot());
+            }
+
             // When initialized asynchronously, the current thread may be a background thread at this point.
             // Do any initialization that requires the UI thread after switching to the UI thread.
             await this.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
@@ -88,37 +93,42 @@ namespace BuildLogger
 
         private void LogTime(TimeSpan elapsed)
         {
-            using (FileStream file = new FileStream(GetLogFilePath(), FileMode.OpenOrCreate, FileAccess.ReadWrite))
+            try
             {
-                int totalSeconds;
-                using (StreamReader reader = new StreamReader(file))
+                int existingTime = ReadTime();
+                WriteTime(existingTime + (int)Math.Floor(elapsed.TotalSeconds));
+            } catch (Exception e)
+            {
+                int thing;
+            }
+        }
+
+        private int ReadTime()
+        {
+            string s = File.ReadAllText(GetLogFilePath());
+
+            return string.IsNullOrEmpty(s) ? 0 : int.Parse(s);
+        }
+
+        private void WriteTime(int v)
+        {
+            using (var file = new FileStream(GetLogFilePath(), FileMode.Truncate, FileAccess.Write))
+            {
+                using (var writer = new StreamWriter(file))
                 {
-                    string existingTime = reader.ReadLine();
-
-                    if (string.IsNullOrEmpty(existingTime))
-                    {
-                        totalSeconds = 0;
-                    }
-                    else
-                    {
-                        totalSeconds = int.Parse(existingTime);
-                    }
-                }
-
-                int newBuildTime = totalSeconds + elapsed.Seconds;
-                file.SetLength(0);
-
-                using (StreamWriter writer = new StreamWriter(file))
-                {
-                    writer.Write(newBuildTime);
-                    writer.Flush();
+                    writer.Write(v);
                 }
             }
         }
 
         private string GetLogFilePath()
         {
-            return "/build-log/build-log-" + DateTime.Now.ToShortDateString() + ".txt";
+            return $@"C:\build-log\build-log-{DateTime.Now.ToString(@"yyyy-MM-dd")}.txt";
+        }
+
+        private string GetLogFileRoot()
+        {
+            return $@"C:\build-log";
         }
 
         public int UpdateSolution_StartUpdate(ref int pfCancelUpdate)
